@@ -15,20 +15,33 @@ HAVE_GIFLIB = 1
 # enable features requiring libexif (-lexif)
 HAVE_LIBEXIF = 1
 
+# Uncomment to enable the alpha patch / ALPHA_PATCH
+#xrender = -lXrender
+
+# Uncomment to enable SVG support / SVG_IMAGE_SUPPORT_PATCH
+# svglibs = `pkg-config --cflags --libs librsvg-2.0 cairo`
+
+# Uncomment to enable WebP support / WEBP_IMAGE_SUPPORT_PATCH
+# webplibs = -lwebpdemux -lwebp
+
+ # Uncomment to enable libcurl support / LIBCURL_PATCH
+curllibs = -lcurl
+curlobjs = url.o
+
 cflags = -std=c99 -Wall -pedantic $(CFLAGS)
 cppflags = -I. $(CPPFLAGS) -D_XOPEN_SOURCE=700 \
   -DHAVE_GIFLIB=$(HAVE_GIFLIB) -DHAVE_LIBEXIF=$(HAVE_LIBEXIF) \
-  -I/usr/include/freetype2 -I$(PREFIX)/include/freetype2
+  -I/usr/include/freetype2 -I$(PREFIX)/include/freetype2 $(svglibs)
 
 lib_exif_0 =
 lib_exif_1 = -lexif
 lib_gif_0 =
 lib_gif_1 = -lgif
 ldlibs = $(LDLIBS) -lImlib2 -lX11 -lXft -lfontconfig \
-  $(lib_exif_$(HAVE_LIBEXIF)) $(lib_gif_$(HAVE_GIFLIB))
+  $(lib_exif_$(HAVE_LIBEXIF)) $(lib_gif_$(HAVE_GIFLIB)) $(webplibs) $(curllibs) $(xrender)
 
 objs = autoreload_$(AUTORELOAD).o commands.o image.o main.o options.o \
-  thumbs.o util.o window.o
+  thumbs.o util.o window.o $(curlobjs)
 
 all: sxiv
 
@@ -39,9 +52,9 @@ $(V).SILENT:
 
 sxiv: $(objs)
 	@echo "LINK $@"
-	$(CC) $(LDFLAGS) -o $@ $(objs) $(ldlibs)
+	$(CC) $(LDFLAGS) -o $@ $(objs) $(ldlibs) $(svglibs)
 
-$(objs): Makefile sxiv.h commands.lst config.h
+$(objs): Makefile sxiv.h commands.lst config.h patches.h
 options.o: version.h
 window.o: icon/data.h
 
@@ -52,6 +65,10 @@ window.o: icon/data.h
 config.h:
 	@echo "GEN $@"
 	cp $(srcdir)/config.def.h $@
+
+patches.h:
+	@echo "GEN $@"
+	cp $(srcdir)/patches.def.h $@
 
 version.h: Makefile .git/index
 	@echo "GEN $@"

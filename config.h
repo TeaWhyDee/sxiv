@@ -48,7 +48,7 @@ static const bool ALPHA_LAYER = false;
 #ifdef _THUMBS_CONFIG
 
 /* thumbnail sizes in pixels (width == height): */
-static const int thumb_sizes[] = { 96, 128, 160, 190, 220, 250, 280, 310, 340 };
+static const int thumb_sizes[] = { 96, 128, 160, 190, 220, 250, 280, 310, 340, 370 };
 
 /* thumbnail size at startup, index into thumb_sizes[]: */
 static const int THUMB_SIZE = 6;
@@ -61,6 +61,7 @@ static const keymap_t keys[] = {
 	/* modifiers    key               function              argument */
 	{ 0,            XK_q,             g_quit,               None },
 	{ 0,            XK_Return,        g_switch_mode,        None },
+	{ 0,            XK_Tab,        g_switch_mode,        None },
 	{ 0,            XK_f,             g_toggle_fullscreen,  None },
 	{ 0,            XK_b,             g_toggle_bar,         None },
 	{ 0,            XK_x,             g_prefix_external,    None },
@@ -91,35 +92,41 @@ static const keymap_t keys[] = {
 	{ ControlMask,  XK_g,             g_change_gamma,        0 },
 
 	{ 0,            XK_h,             t_move_sel,           DIR_LEFT },
+	{ 0,            XK_a,             t_move_sel,           DIR_LEFT },
 	{ 0,            XK_Left,          t_move_sel,           DIR_LEFT },
 	{ 0,            XK_j,             t_move_sel,           DIR_DOWN },
+	{ 0,            XK_s,             t_move_sel,           DIR_DOWN },
 	{ 0,            XK_Down,          t_move_sel,           DIR_DOWN },
 	{ 0,            XK_k,             t_move_sel,           DIR_UP },
+	{ 0,            XK_w,             t_move_sel,           DIR_UP },
 	{ 0,            XK_Up,            t_move_sel,           DIR_UP },
 	{ 0,            XK_l,             t_move_sel,           DIR_RIGHT },
+	{ 0,            XK_d,             t_move_sel,           DIR_RIGHT },
 	{ 0,            XK_Right,         t_move_sel,           DIR_RIGHT },
 	{ 0,            XK_R,             t_reload_all,         None },
-	{ 0,            XK_space,         t_reload_all,         None },
+	/* { 0,            XK_space,         t_reload_all,         None }, */
 
 	/* { 0,            XK_n,             i_scroll_to_edge,     DIR_LEFT | DIR_UP }, */
 	/* { 0,            XK_space,         i_navigate,           +1 }, */
   /* { 0,            XK_p,             i_navigate,           -1 }, */
   /* { 0,            XK_p,             i_scroll_to_edge,     DIR_LEFT | DIR_UP }, */
   { 0,            XK_h,             i_navigate,           -1 },
-  { 0,            XK_j,             i_navigate,           -1000 },
-  { 0,            XK_l,             i_navigate,           +1 },
-  { 0,            XK_k,             i_navigate,           +1000 },
+  { 0,            XK_a,             i_navigate,           -1 },
   { 0,            XK_Left,          i_navigate,           -1 },
-  { 0,            XK_Up,            i_navigate,           -1000 },
+  { 0,            XK_l,             i_navigate,           +1 },
+  { 0,            XK_d,             i_navigate,           +1 },
   { 0,            XK_Right,         i_navigate,           +1 },
-	{ 0,            XK_Down,          i_navigate,           +1000 },
+  { 0,            XK_j,             i_navigate,           -1000 },
+  { 0,            XK_Up,            i_navigate,           -1000 },
+  { 0,            XK_k,             i_navigate,           +1000 },
+  { 0,            XK_Down,          i_navigate,           +1000 },
 	/* { 0,            XK_BackSpace,     i_navigate,           -1 }, */
 	{ 0,            XK_bracketright,  i_navigate,           +5 },
 	{ 0,            XK_bracketleft,   i_navigate,           -5 },
 	/* { ControlMask,  XK_6,             i_alternate,          None }, */
 	{ 0,            XK_n,             i_navigate_frame,     +1 },
 	{ 0,            XK_N,             i_navigate_frame,     -1 },
-	{ ControlMask,  XK_space,         i_toggle_animation,   None },
+	{ 0,            XK_space,         i_toggle_animation,   None },
 	/* { 0,            XK_h,             i_scroll,             DIR_LEFT }, */
 	/* { 0,            XK_Left,          i_scroll,             DIR_LEFT }, */
 	/* { 0,            XK_j,             i_scroll,             DIR_DOWN }, */
@@ -150,8 +157,8 @@ static const keymap_t keys[] = {
 	{ 0,            XK_question,      i_rotate,             DEGREE_180 },
 	{ 0,            XK_bar,           i_flip,               FLIP_HORIZONTAL },
 	{ 0,            XK_underscore,    i_flip,               FLIP_VERTICAL },
-	{ 0,            XK_a,             i_toggle_antialias,   None },
-	{ 0,            XK_A,             i_toggle_alpha,       None },
+	{ ControlMask,            XK_a,             i_toggle_antialias,   None },
+	{ ControlMask,            XK_A,             i_toggle_alpha,       None },
 	{ 0,            XK_s,             i_slideshow,          None },
 };
 

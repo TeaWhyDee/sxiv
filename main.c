@@ -18,7 +18,16 @@
 
 #include "sxiv.h"
 #define _MAPPINGS_CONFIG
+#if WINDOW_FIT_IMAGE_PATCH
+#define _WINDOW_CONFIG
+#endif // WINDOW_FIT_IMAGE_PATCH
 #include "config.h"
+#if WINDOW_FIT_IMAGE_PATCH
+#undef _WINDOW_CONFIG
+#endif // WINDOW_FIT_IMAGE_PATCH
+#if LIBCURL_PATCH
+#include "url.h"
+#endif // LIBCURL_PATCH
 
 #include <stdlib.h>
 #include <string.h>
@@ -58,6 +67,10 @@ int filecnt, fileidx;
 int alternate;
 int markcnt;
 int markidx;
+#if LIBCURL_PATCH
+char **rmfiles;
+int rmcnt, rmidx;
+#endif // LIBCURL_PATCH
 
 int prefix;
 bool extprefix;
@@ -93,15 +106,29 @@ cursor_t imgcursor[3] = {
 	CURSOR_ARROW, CURSOR_ARROW, CURSOR_ARROW
 };
 
+#if LIBCURL_PATCH
+CLEANUP void tmp_unlink(char **rmfiles, int n) {
+	while (n--)
+		unlink(rmfiles[n]);
+}
+#endif // LIBCURL_PATCH
+
 void cleanup(void)
 {
+#if LIBCURL_PATCH
+	tmp_unlink(rmfiles, rmidx);
+#endif // LIBCURL_PATCH
 	img_close(&img, false);
 	arl_cleanup(&arl);
 	tns_free(&tns);
 	win_close(&win);
 }
 
+#if LIBCURL_PATCH
+void internal_check_add_file(char *filename, char *url, bool given)
+#else
 void check_add_file(char *filename, bool given)
+#endif // LIBCURL_PATCH
 {
 	char *path;
 
@@ -109,7 +136,7 @@ void check_add_file(char *filename, bool given)
 		return;
 
 	if (access(filename, R_OK) < 0 ||
-	    (path = realpath(filename, NULL)) == NULL)
+			(path = realpath(filename, NULL)) == NULL)
 	{
 		if (given)
 			error(0, errno, "%s", filename);
@@ -124,10 +151,34 @@ void check_add_file(char *filename, bool given)
 
 	files[fileidx].name = estrdup(filename);
 	files[fileidx].path = path;
+#if LIBCURL_PATCH
+	if (url != NULL)
+	{
+		files[fileidx].url = estrdup(url);
+		if (rmidx == rmcnt) {
+			rmcnt *= 2;
+			rmfiles = erealloc(rmfiles, rmcnt * sizeof(char*));
+			memset(&rmfiles[rmcnt/2], 0, rmcnt/2 * sizeof(char*));
+		}
+		rmfiles[rmidx++] = path;
+	}
+#endif // LIBCURL_PATCH
 	if (given)
 		files[fileidx].flags |= FF_WARN;
 	fileidx++;
 }
+
+#if LIBCURL_PATCH
+void check_add_file(char *filename, bool given)
+{
+	internal_check_add_file(filename, NULL, given);
+}
+
+void check_add_url(char *filename, char *url, bool given)
+{
+	internal_check_add_file(filename, url, given);
+}
+#endif // LIBCURL_PATCH
 
 void remove_file(int n, bool manual)
 {
@@ -149,7 +200,7 @@ void remove_file(int n, bool manual)
 	if (n + 1 < filecnt) {
 		if (tns.thumbs != NULL) {
 			memmove(tns.thumbs + n, tns.thumbs + n + 1, (filecnt - n - 1) *
-			        sizeof(*tns.thumbs));
+					sizeof(*tns.thumbs));
 			memset(tns.thumbs + filecnt - 1, 0, sizeof(*tns.thumbs));
 		}
 		memmove(files + n, files + n + 1, (filecnt - n - 1) * sizeof(*files));
@@ -314,6 +365,9 @@ void load_image(int new)
 	close_info();
 	open_info();
 	arl_setup(&arl, files[fileidx].path);
+#if WINDOW_TITLE_PATCH
+	win_set_dynamic_title(&win, files[fileidx].path);
+#endif // WINDOW_TITLE_PATCH
 
 	if (img.multi.cnt > 0 && img.multi.animate)
 		set_timeout(animate, img.multi.frames[img.multi.sel].delay, true);
@@ -365,9 +419,17 @@ void update_info(void)
 			bar_put(l, "Loading... %0*d", fw, tns.loadnext + 1);
 		else if (tns.initnext < filecnt)
 			bar_put(l, "Caching... %0*d", fw, tns.initnext + 1);
+#if LIBCURL_PATCH
+		else if (files[fileidx].url != NULL)
+			strncpy(l->buf, files[fileidx].url, l->size);
+#endif // LIBCURL_PATCH
 		else
 			strncpy(l->buf, files[fileidx].name, l->size);
+#if MARK_COUNT_PATCH
+		bar_put(r, "%s%d %0*d/%d", mark, markcnt, fw, fileidx + 1, filecnt);
+#else
 		bar_put(r, "%s%0*d/%d", mark, fw, fileidx + 1, filecnt);
+#endif // MARK_COUNT_PATCH
 	} else {
 		bar_put(r, "%s", mark);
 		if (img.ss.on) {
@@ -384,8 +446,14 @@ void update_info(void)
 			bar_put(r, "%0*d/%d" BAR_SEP, fn, img.multi.sel + 1, img.multi.cnt);
 		}
 		bar_put(r, "%0*d/%d", fw, fileidx + 1, filecnt);
-		if (info.f.err)
-			strncpy(l->buf, files[fileidx].name, l->size);
+		if (info.f.err) {
+#if LIBCURL_PATCH
+			if (files[fileidx].url != NULL)
+				strncpy(l->buf, files[fileidx].url, l->size);
+			else
+#endif // LIBCURL_PATCH
+				strncpy(l->buf, files[fileidx].name, l->size);
+		}
 	}
 }
 
@@ -468,7 +536,11 @@ Bool is_input_ev(Display *dpy, XEvent *ev, XPointer arg)
 	return ev->type == ButtonPress || ev->type == KeyPress;
 }
 
+#if ALLOW_ESCAPE_KEY_IN_EXTERNAL_KEY_HANDLER_PATCH
+int run_key_handler(const char *key, unsigned int mask)
+#else
 void run_key_handler(const char *key, unsigned int mask)
+#endif // ALLOW_ESCAPE_KEY_IN_EXTERNAL_KEY_HANDLER_PATCH
 {
 	pid_t pid;
 	FILE *pfs;
@@ -479,25 +551,44 @@ void run_key_handler(const char *key, unsigned int mask)
 	char kstr[32];
 	struct stat *oldst, st;
 	XEvent dump;
+#if ALLOW_ESCAPE_KEY_IN_EXTERNAL_KEY_HANDLER_PATCH
+	int status;
+#endif // ALLOW_ESCAPE_KEY_IN_EXTERNAL_KEY_HANDLER_PATCH
 
 	if (keyhandler.f.err != 0) {
 		if (!keyhandler.warned) {
 			error(0, keyhandler.f.err, "%s", keyhandler.f.cmd);
 			keyhandler.warned = true;
 		}
+#if ALLOW_ESCAPE_KEY_IN_EXTERNAL_KEY_HANDLER_PATCH
+		return 1;
+#else
 		return;
+#endif // ALLOW_ESCAPE_KEY_IN_EXTERNAL_KEY_HANDLER_PATCH
 	}
 	if (key == NULL)
-		return;
+#if ALLOW_ESCAPE_KEY_IN_EXTERNAL_KEY_HANDLER_PATCH
+		return 1;
+#else
+	return;
+#endif // ALLOW_ESCAPE_KEY_IN_EXTERNAL_KEY_HANDLER_PATCH
 
 	if (pipe(pfd) < 0) {
 		error(0, errno, "pipe");
+#if ALLOW_ESCAPE_KEY_IN_EXTERNAL_KEY_HANDLER_PATCH
+		return 1;
+#else
 		return;
+#endif // ALLOW_ESCAPE_KEY_IN_EXTERNAL_KEY_HANDLER_PATCH
 	}
 	if ((pfs = fdopen(pfd[1], "w")) == NULL) {
 		error(0, errno, "open pipe");
 		close(pfd[0]), close(pfd[1]);
+#if ALLOW_ESCAPE_KEY_IN_EXTERNAL_KEY_HANDLER_PATCH
+		return 1;
+#else
 		return;
+#endif // ALLOW_ESCAPE_KEY_IN_EXTERNAL_KEY_HANDLER_PATCH
 	}
 	oldst = emalloc(fcnt * sizeof(*oldst));
 
@@ -507,9 +598,9 @@ void run_key_handler(const char *key, unsigned int mask)
 	win_set_cursor(&win, CURSOR_WATCH);
 
 	snprintf(kstr, sizeof(kstr), "%s%s%s%s",
-	         mask & ControlMask ? "C-" : "",
-	         mask & Mod1Mask    ? "M-" : "",
-	         mask & ShiftMask   ? "S-" : "", key);
+			mask & ControlMask ? "C-" : "",
+			mask & Mod1Mask    ? "M-" : "",
+			mask & ShiftMask   ? "S-" : "", key);
 
 	if ((pid = fork()) == 0) {
 		close(pfd[1]);
@@ -532,12 +623,16 @@ void run_key_handler(const char *key, unsigned int mask)
 		}
 	}
 	fclose(pfs);
+#if ALLOW_ESCAPE_KEY_IN_EXTERNAL_KEY_HANDLER_PATCH
+	while (waitpid(pid, &status, 0) == -1 && errno == EINTR);
+#else
 	while (waitpid(pid, NULL, 0) == -1 && errno == EINTR);
+#endif // ALLOW_ESCAPE_KEY_IN_EXTERNAL_KEY_HANDLER_PATCH
 
 	for (f = i = 0; f < fcnt; i++) {
 		if ((marked && (files[i].flags & FF_MARK)) || (!marked && i == fileidx)) {
 			if (stat(files[i].path, &st) != 0 ||
-				  memcmp(&oldst[f].st_mtime, &st.st_mtime, sizeof(st.st_mtime)) != 0)
+					memcmp(&oldst[f].st_mtime, &st.st_mtime, sizeof(st.st_mtime)) != 0)
 			{
 				if (tns.thumbs != NULL) {
 					tns_unload(&tns, i);
@@ -563,6 +658,11 @@ end:
 	free(oldst);
 	reset_cursor();
 	redraw();
+#if ALLOW_ESCAPE_KEY_IN_EXTERNAL_KEY_HANDLER_PATCH
+	if (WIFEXITED(status))
+		return WEXITSTATUS(status);
+	return 1;
+#endif // ALLOW_ESCAPE_KEY_IN_EXTERNAL_KEY_HANDLER_PATCH
 }
 
 #define MODMASK(mask) ((mask) & (ShiftMask|ControlMask|Mod1Mask))
@@ -586,366 +686,424 @@ void on_keypress(XKeyEvent *kev)
 	}
 	if (IsModifierKey(ksym))
 		return;
-	if (ksym == XK_Escape && MODMASK(kev->state) == 0) {
-		extprefix = False;
-	} else if (extprefix) {
-		run_key_handler(XKeysymToString(ksym), kev->state & ~sh);
-		extprefix = False;
-	} else if (key >= '0' && key <= '9') {
-		/* number prefix for commands */
-		prefix = prefix * 10 + (int) (key - '0');
-		return;
-	} else for (i = 0; i < ARRLEN(keys); i++) {
-		if (keys[i].ksym == ksym &&
-		    MODMASK(keys[i].mask | sh) == MODMASK(kev->state) &&
-		    keys[i].cmd >= 0 && keys[i].cmd < CMD_COUNT &&
-		    (cmds[keys[i].cmd].mode < 0 || cmds[keys[i].cmd].mode == mode))
-		{
-			if (cmds[keys[i].cmd].func(keys[i].arg))
-				dirty = true;
-		}
-	}
-	if (dirty)
-		redraw();
-	prefix = 0;
-}
-
-void on_buttonpress(XButtonEvent *bev)
-{
-	int i, sel;
-	bool dirty = false;
-	static Time firstclick;
-
-	if (mode == MODE_IMAGE) {
-		set_timeout(reset_cursor, TO_CURSOR_HIDE, true);
-		reset_cursor();
-
-		for (i = 0; i < ARRLEN(buttons); i++) {
-			if (buttons[i].button == bev->button &&
-			    MODMASK(buttons[i].mask) == MODMASK(bev->state) &&
-			    buttons[i].cmd >= 0 && buttons[i].cmd < CMD_COUNT &&
-			    (cmds[buttons[i].cmd].mode < 0 || cmds[buttons[i].cmd].mode == mode))
+#if ALLOW_ESCAPE_KEY_IN_EXTERNAL_KEY_HANDLER_PATCH
+	if (extprefix) {
+		if (run_key_handler(XKeysymToString(ksym), kev->state & ~sh))
+			extprefix = False;
+		if (one_extkeyhandler_cmd)
+			extprefix = False;
+#else
+		if (ksym == XK_Escape && MODMASK(kev->state) == 0) {
+			extprefix = False;
+		} else if (extprefix) {
+			run_key_handler(XKeysymToString(ksym), kev->state & ~sh);
+			extprefix = False;
+#endif // ALLOW_ESCAPE_KEY_IN_EXTERNAL_KEY_HANDLER_PATCH
+		} else if (key >= '0' && key <= '9') {
+			/* number prefix for commands */
+			prefix = prefix * 10 + (int) (key - '0');
+			return;
+		} else for (i = 0; i < ARRLEN(keys); i++) {
+			if (keys[i].ksym == ksym &&
+					MODMASK(keys[i].mask | sh) == MODMASK(kev->state) &&
+					keys[i].cmd >= 0 && keys[i].cmd < CMD_COUNT &&
+					(cmds[keys[i].cmd].mode < 0 || cmds[keys[i].cmd].mode == mode))
 			{
-				if (cmds[buttons[i].cmd].func(buttons[i].arg))
+				if (cmds[keys[i].cmd].func(keys[i].arg))
 					dirty = true;
 			}
 		}
 		if (dirty)
 			redraw();
-	} else {
-		/* thumbnail mode (hard-coded) */
-		switch (bev->button) {
-			case Button1:
-				if ((sel = tns_translate(&tns, bev->x, bev->y)) >= 0) {
-					if (sel != fileidx) {
-						tns_highlight(&tns, fileidx, false);
-						tns_highlight(&tns, sel, true);
-						fileidx = sel;
-						firstclick = bev->time;
-						redraw();
-					} else if (bev->time - firstclick <= TO_DOUBLE_CLICK) {
-						mode = MODE_IMAGE;
-						set_timeout(reset_cursor, TO_CURSOR_HIDE, true);
-						load_image(fileidx);
-						redraw();
-					} else {
-						firstclick = bev->time;
-					}
-				}
-				break;
-			case Button3:
-				if ((sel = tns_translate(&tns, bev->x, bev->y)) >= 0) {
-					bool on = !(files[sel].flags & FF_MARK);
-					XEvent e;
-
-					for (;;) {
-						if (sel >= 0 && mark_image(sel, on))
-							redraw();
-						XMaskEvent(win.env.dpy,
-						           ButtonPressMask | ButtonReleaseMask | PointerMotionMask, &e);
-						if (e.type == ButtonPress || e.type == ButtonRelease)
-							break;
-						while (XCheckTypedEvent(win.env.dpy, MotionNotify, &e));
-						sel = tns_translate(&tns, e.xbutton.x, e.xbutton.y);
-					}
-				}
-				break;
-			case Button4:
-			case Button5:
-				if (tns_scroll(&tns, bev->button == Button4 ? DIR_UP : DIR_DOWN,
-				               (bev->state & ControlMask) != 0))
-					redraw();
-				break;
-		}
+		prefix = 0;
 	}
-	prefix = 0;
-}
 
-const struct timespec ten_ms = {0, 10000000};
+	void on_buttonpress(XButtonEvent *bev)
+	{
+		int i, sel;
+		bool dirty = false;
+		static Time firstclick;
 
-void run(void)
-{
-	int xfd;
-	fd_set fds;
-	struct timeval timeout;
-	bool discard, init_thumb, load_thumb, to_set;
-	XEvent ev, nextev;
+		if (mode == MODE_IMAGE) {
+			set_timeout(reset_cursor, TO_CURSOR_HIDE, true);
+			reset_cursor();
 
-	while (true) {
-		to_set = check_timeouts(&timeout);
-		init_thumb = mode == MODE_THUMB && tns.initnext < filecnt;
-		load_thumb = mode == MODE_THUMB && tns.loadnext < tns.end;
-
-		if ((init_thumb || load_thumb || to_set || info.fd != -1 ||
-			   arl.fd != -1) && XPending(win.env.dpy) == 0)
-		{
-			if (load_thumb) {
-				set_timeout(redraw, TO_REDRAW_THUMBS, false);
-				if (!tns_load(&tns, tns.loadnext, false, false)) {
-					remove_file(tns.loadnext, false);
-					tns.dirty = true;
+			for (i = 0; i < ARRLEN(buttons); i++) {
+				if (buttons[i].button == bev->button &&
+						MODMASK(buttons[i].mask) == MODMASK(bev->state) &&
+						buttons[i].cmd >= 0 && buttons[i].cmd < CMD_COUNT &&
+						(cmds[buttons[i].cmd].mode < 0 || cmds[buttons[i].cmd].mode == mode))
+				{
+					if (cmds[buttons[i].cmd].func(buttons[i].arg))
+						dirty = true;
 				}
-				if (tns.loadnext >= tns.end)
-					redraw();
-			} else if (init_thumb) {
-				set_timeout(redraw, TO_REDRAW_THUMBS, false);
-				if (!tns_load(&tns, tns.initnext, false, true))
-					remove_file(tns.initnext, false);
-			} else {
-				xfd = ConnectionNumber(win.env.dpy);
-				FD_ZERO(&fds);
-				FD_SET(xfd, &fds);
-				if (info.fd != -1) {
-					FD_SET(info.fd, &fds);
-					xfd = MAX(xfd, info.fd);
-				}
-				if (arl.fd != -1) {
-					FD_SET(arl.fd, &fds);
-					xfd = MAX(xfd, arl.fd);
-				}
-				select(xfd + 1, &fds, 0, 0, to_set ? &timeout : NULL);
-				if (info.fd != -1 && FD_ISSET(info.fd, &fds))
-					read_info();
-				if (arl.fd != -1 && FD_ISSET(arl.fd, &fds)) {
-					if (arl_handle(&arl)) {
-						/* when too fast, imlib2 can't load the image */
-						nanosleep(&ten_ms, NULL);
-						img_close(&img, true);
-						load_image(fileidx);
-						redraw();
+			}
+			if (dirty)
+				redraw();
+		} else {
+			/* thumbnail mode (hard-coded) */
+			switch (bev->button) {
+				case Button1:
+					if ((sel = tns_translate(&tns, bev->x, bev->y)) >= 0) {
+						if (sel != fileidx) {
+							tns_highlight(&tns, fileidx, false);
+							tns_highlight(&tns, sel, true);
+							fileidx = sel;
+							firstclick = bev->time;
+							redraw();
+						} else if (bev->time - firstclick <= TO_DOUBLE_CLICK) {
+							mode = MODE_IMAGE;
+							set_timeout(reset_cursor, TO_CURSOR_HIDE, true);
+							load_image(fileidx);
+							redraw();
+						} else {
+							firstclick = bev->time;
+						}
 					}
-				}
+					break;
+				case Button3:
+					if ((sel = tns_translate(&tns, bev->x, bev->y)) >= 0) {
+						bool on = !(files[sel].flags & FF_MARK);
+						XEvent e;
+
+						for (;;) {
+							if (sel >= 0 && mark_image(sel, on))
+								redraw();
+							XMaskEvent(win.env.dpy,
+									ButtonPressMask | ButtonReleaseMask | PointerMotionMask, &e);
+							if (e.type == ButtonPress || e.type == ButtonRelease)
+								break;
+							while (XCheckTypedEvent(win.env.dpy, MotionNotify, &e));
+							sel = tns_translate(&tns, e.xbutton.x, e.xbutton.y);
+						}
+					}
+					break;
+				case Button4:
+				case Button5:
+					if (tns_scroll(&tns, bev->button == Button4 ? DIR_UP : DIR_DOWN,
+								(bev->state & ControlMask) != 0))
+						redraw();
+					break;
 			}
-			continue;
 		}
+		prefix = 0;
+	}
 
-		do {
-			XNextEvent(win.env.dpy, &ev);
-			discard = false;
-			if (XEventsQueued(win.env.dpy, QueuedAlready) > 0) {
-				XPeekEvent(win.env.dpy, &nextev);
-				switch (ev.type) {
-					case ConfigureNotify:
-					case MotionNotify:
-						discard = ev.type == nextev.type;
-						break;
-					case KeyPress:
-						discard = (nextev.type == KeyPress || nextev.type == KeyRelease)
-						          && ev.xkey.keycode == nextev.xkey.keycode;
-						break;
-				}
-			}
-		} while (discard);
+	const struct timespec ten_ms = {0, 10000000};
 
-		switch (ev.type) {
-			/* handle events */
-			case ButtonPress:
-				on_buttonpress(&ev.xbutton);
-				break;
-			case ClientMessage:
-				if ((Atom) ev.xclient.data.l[0] == atoms[ATOM_WM_DELETE_WINDOW])
-					cmds[g_quit].func(0);
-				break;
-			case ConfigureNotify:
-				if (win_configure(&win, &ev.xconfigure)) {
-					if (mode == MODE_IMAGE) {
-						img.dirty = true;
-						img.checkpan = true;
-					} else {
+	void run(void)
+	{
+		int xfd;
+		fd_set fds;
+		struct timeval timeout;
+		bool discard, init_thumb, load_thumb, to_set;
+		XEvent ev, nextev;
+
+		while (true) {
+			to_set = check_timeouts(&timeout);
+			init_thumb = mode == MODE_THUMB && tns.initnext < filecnt;
+			load_thumb = mode == MODE_THUMB && tns.loadnext < tns.end;
+
+			if ((init_thumb || load_thumb || to_set || info.fd != -1 ||
+						arl.fd != -1) && XPending(win.env.dpy) == 0)
+			{
+				if (load_thumb) {
+					set_timeout(redraw, TO_REDRAW_THUMBS, false);
+					if (!tns_load(&tns, tns.loadnext, false, false)) {
+						remove_file(tns.loadnext, false);
 						tns.dirty = true;
 					}
-					if (!resized) {
+					if (tns.loadnext >= tns.end)
 						redraw();
-						set_timeout(clear_resize, TO_REDRAW_RESIZE, false);
-						resized = true;
-					} else {
-						set_timeout(redraw, TO_REDRAW_RESIZE, false);
+				} else if (init_thumb) {
+					set_timeout(redraw, TO_REDRAW_THUMBS, false);
+					if (!tns_load(&tns, tns.initnext, false, true))
+						remove_file(tns.initnext, false);
+				} else {
+					xfd = ConnectionNumber(win.env.dpy);
+					FD_ZERO(&fds);
+					FD_SET(xfd, &fds);
+					if (info.fd != -1) {
+						FD_SET(info.fd, &fds);
+						xfd = MAX(xfd, info.fd);
+					}
+					if (arl.fd != -1) {
+						FD_SET(arl.fd, &fds);
+						xfd = MAX(xfd, arl.fd);
+					}
+					select(xfd + 1, &fds, 0, 0, to_set ? &timeout : NULL);
+					if (info.fd != -1 && FD_ISSET(info.fd, &fds))
+						read_info();
+					if (arl.fd != -1 && FD_ISSET(arl.fd, &fds)) {
+						if (arl_handle(&arl)) {
+							/* when too fast, imlib2 can't load the image */
+							nanosleep(&ten_ms, NULL);
+							img_close(&img, true);
+							load_image(fileidx);
+							redraw();
+						}
 					}
 				}
-				break;
-			case KeyPress:
-				on_keypress(&ev.xkey);
-				break;
-			case MotionNotify:
-				if (mode == MODE_IMAGE) {
-					set_timeout(reset_cursor, TO_CURSOR_HIDE, true);
-					reset_cursor();
+				continue;
+			}
+
+			do {
+				XNextEvent(win.env.dpy, &ev);
+				discard = false;
+				if (XEventsQueued(win.env.dpy, QueuedAlready) > 0) {
+					XPeekEvent(win.env.dpy, &nextev);
+					switch (ev.type) {
+						case ConfigureNotify:
+						case MotionNotify:
+							discard = ev.type == nextev.type;
+							break;
+						case KeyPress:
+							discard = (nextev.type == KeyPress || nextev.type == KeyRelease)
+								&& ev.xkey.keycode == nextev.xkey.keycode;
+							break;
+					}
 				}
-				break;
+			} while (discard);
+
+			switch (ev.type) {
+				/* handle events */
+				case ButtonPress:
+					on_buttonpress(&ev.xbutton);
+					break;
+				case ClientMessage:
+					if ((Atom) ev.xclient.data.l[0] == atoms[ATOM_WM_DELETE_WINDOW])
+						cmds[g_quit].func(0);
+					break;
+				case ConfigureNotify:
+					if (win_configure(&win, &ev.xconfigure)) {
+						if (mode == MODE_IMAGE) {
+							img.dirty = true;
+							img.checkpan = true;
+						} else {
+							tns.dirty = true;
+						}
+						if (!resized) {
+							redraw();
+							set_timeout(clear_resize, TO_REDRAW_RESIZE, false);
+							resized = true;
+						} else {
+							set_timeout(redraw, TO_REDRAW_RESIZE, false);
+						}
+					}
+					break;
+				case KeyPress:
+					on_keypress(&ev.xkey);
+					break;
+				case MotionNotify:
+					if (mode == MODE_IMAGE) {
+						set_timeout(reset_cursor, TO_CURSOR_HIDE, true);
+						reset_cursor();
+					}
+					break;
+			}
 		}
 	}
-}
 
-int fncmp(const void *a, const void *b)
-{
-	return strcoll(((fileinfo_t*) a)->name, ((fileinfo_t*) b)->name);
-}
-
-void sigchld(int sig)
-{
-	while (waitpid(-1, NULL, WNOHANG) > 0);
-}
-
-void setup_signal(int sig, void (*handler)(int sig))
-{
-	struct sigaction sa;
-
-	sa.sa_handler = handler;
-	sigemptyset(&sa.sa_mask);
-	sa.sa_flags = SA_RESTART | SA_NOCLDSTOP;
-	if (sigaction(sig, &sa, 0) == -1)
-		error(EXIT_FAILURE, errno, "signal %d", sig);
-}
-
-int main(int argc, char **argv)
-{
-	int i, start;
-	size_t n;
-	ssize_t len;
-	char *filename;
-	const char *homedir, *dsuffix = "";
-	struct stat fstats;
-	r_dir_t dir;
-
-	setup_signal(SIGCHLD, sigchld);
-	setup_signal(SIGPIPE, SIG_IGN);
-
-	setlocale(LC_COLLATE, "");
-
-	parse_options(argc, argv);
-
-	if (options->clean_cache) {
-		tns_init(&tns, NULL, NULL, NULL, NULL);
-		tns_clean_cache(&tns);
-		exit(EXIT_SUCCESS);
+	int fncmp(const void *a, const void *b)
+	{
+		return strcoll(((fileinfo_t*) a)->name, ((fileinfo_t*) b)->name);
 	}
 
-	if (options->filecnt == 0 && !options->from_stdin) {
-		print_usage();
-		exit(EXIT_FAILURE);
+	void sigchld(int sig)
+	{
+		while (waitpid(-1, NULL, WNOHANG) > 0);
 	}
 
-	if (options->recursive || options->from_stdin)
-		filecnt = 1024;
-	else
-		filecnt = options->filecnt;
+	void setup_signal(int sig, void (*handler)(int sig))
+	{
+		struct sigaction sa;
 
-	files = emalloc(filecnt * sizeof(*files));
-	memset(files, 0, filecnt * sizeof(*files));
-	fileidx = 0;
+		sa.sa_handler = handler;
+		sigemptyset(&sa.sa_mask);
+		sa.sa_flags = SA_RESTART | SA_NOCLDSTOP;
+		if (sigaction(sig, &sa, 0) == -1)
+			error(EXIT_FAILURE, errno, "signal %d", sig);
+	}
 
-	if (options->from_stdin) {
-		n = 0;
-		filename = NULL;
-		while ((len = getline(&filename, &n, stdin)) > 0) {
-			if (filename[len-1] == '\n')
-				filename[len-1] = '\0';
-			check_add_file(filename, true);
+	int main(int argc, char **argv)
+	{
+		int i, start;
+		size_t n;
+		ssize_t len;
+		char *filename;
+		const char *homedir, *dsuffix = "";
+		struct stat fstats;
+		r_dir_t dir;
+
+		setup_signal(SIGCHLD, sigchld);
+		setup_signal(SIGPIPE, SIG_IGN);
+
+		setlocale(LC_COLLATE, "");
+
+		parse_options(argc, argv);
+
+		if (options->clean_cache) {
+			tns_init(&tns, NULL, NULL, NULL, NULL);
+			tns_clean_cache(&tns);
+			exit(EXIT_SUCCESS);
 		}
-		free(filename);
-	}
 
-	for (i = 0; i < options->filecnt; i++) {
-		filename = options->filenames[i];
-
-		if (stat(filename, &fstats) < 0) {
-			error(0, errno, "%s", filename);
-			continue;
+		if (options->filecnt == 0 && !options->from_stdin) {
+			print_usage();
+			exit(EXIT_FAILURE);
 		}
-		if (!S_ISDIR(fstats.st_mode)) {
-			check_add_file(filename, true);
-		} else {
-			if (r_opendir(&dir, filename, options->recursive) < 0) {
+
+		if (options->recursive || options->from_stdin)
+			filecnt = 1024;
+		else
+			filecnt = options->filecnt;
+
+		files = emalloc(filecnt * sizeof(*files));
+		memset(files, 0, filecnt * sizeof(*files));
+		fileidx = 0;
+#if LIBCURL_PATCH
+		rmcnt = 16;
+		rmfiles = emalloc(rmcnt * sizeof(char*));
+		rmidx = 0;
+#endif // LIBCURL_PATCH
+
+		if (options->from_stdin) {
+			n = 0;
+			filename = NULL;
+			while ((len = getline(&filename, &n, stdin)) > 0) {
+				if (filename[len-1] == '\n')
+					filename[len-1] = '\0';
+				check_add_file(filename, true);
+			}
+			free(filename);
+		}
+
+		for (i = 0; i < options->filecnt; i++) {
+			filename = options->filenames[i];
+
+			if (stat(filename, &fstats) < 0) {
+#if LIBCURL_PATCH
+				if (is_url(filename)) {
+					char *tmp;
+
+					if (get_url(filename, &tmp) == 0) {
+						check_add_url(tmp, filename, true);
+						free(tmp);
+						continue;
+					} else {
+						error(0, errno, "%s", filename);
+					}
+				}
+#endif // LIBCURL_PATCH
 				error(0, errno, "%s", filename);
 				continue;
 			}
-			start = fileidx;
-			while ((filename = r_readdir(&dir, true)) != NULL) {
-				check_add_file(filename, false);
-				free((void*) filename);
+			if (!S_ISDIR(fstats.st_mode)) {
+				check_add_file(filename, true);
+			} else {
+				if (r_opendir(&dir, filename, options->recursive) < 0) {
+					error(0, errno, "%s", filename);
+					continue;
+				}
+				start = fileidx;
+				while ((filename = r_readdir(&dir, true)) != NULL) {
+					check_add_file(filename, false);
+					free((void*) filename);
+				}
+				r_closedir(&dir);
+				if (fileidx - start > 1)
+					qsort(files + start, fileidx - start, sizeof(fileinfo_t), fncmp);
 			}
-			r_closedir(&dir);
-			if (fileidx - start > 1)
-				qsort(files + start, fileidx - start, sizeof(fileinfo_t), fncmp);
 		}
-	}
 
-	if (fileidx == 0)
-		error(EXIT_FAILURE, 0, "No valid image file given, aborting");
+		if (fileidx == 0)
+			error(EXIT_FAILURE, 0, "No valid image file given, aborting");
 
-	filecnt = fileidx;
-	fileidx = options->startnum < filecnt ? options->startnum : 0;
+		filecnt = fileidx;
+		fileidx = options->startnum < filecnt ? options->startnum : 0;
 
-	for (i = 0; i < ARRLEN(buttons); i++) {
-		if (buttons[i].cmd == i_cursor_navigate) {
-			imgcursor[0] = CURSOR_LEFT;
-			imgcursor[2] = CURSOR_RIGHT;
-			break;
+#if START_FROM_FILE_PATCH
+		if (options->startfile != NULL)
+			for (int i = 0; i < filecnt; ++i)
+				if (strcmp(options->startfile, files[i].path) == 0)
+					fileidx = i;
+#endif // START_FROM_FILE_PATCH
+
+		for (i = 0; i < ARRLEN(buttons); i++) {
+			if (buttons[i].cmd == i_cursor_navigate) {
+				imgcursor[0] = CURSOR_LEFT;
+				imgcursor[2] = CURSOR_RIGHT;
+				break;
+			}
 		}
-	}
 
-	win_init(&win);
-	img_init(&img, &win);
-	arl_init(&arl);
+		win_init(&win);
+		img_init(&img, &win);
+		arl_init(&arl);
 
-	if ((homedir = getenv("XDG_CONFIG_HOME")) == NULL || homedir[0] == '\0') {
-		homedir = getenv("HOME");
-		dsuffix = "/.config";
-	}
-	if (homedir != NULL) {
-		extcmd_t *cmd[] = { &info.f, &keyhandler.f };
-		const char *name[] = { "image-info", "key-handler" };
-
-		for (i = 0; i < ARRLEN(cmd); i++) {
-			n = strlen(homedir) + strlen(dsuffix) + strlen(name[i]) + 12;
-			cmd[i]->cmd = (char*) emalloc(n);
-			snprintf(cmd[i]->cmd, n, "%s%s/sxiv/exec/%s", homedir, dsuffix, name[i]);
-			if (access(cmd[i]->cmd, X_OK) != 0)
-				cmd[i]->err = errno;
+		if ((homedir = getenv("XDG_CONFIG_HOME")) == NULL || homedir[0] == '\0') {
+			homedir = getenv("HOME");
+			dsuffix = "/.config";
 		}
-	} else {
-		error(0, 0, "Exec directory not found");
+		if (homedir != NULL) {
+			extcmd_t *cmd[] = { &info.f, &keyhandler.f };
+			const char *name[] = { "image-info", "key-handler" };
+
+			for (i = 0; i < ARRLEN(cmd); i++) {
+				n = strlen(homedir) + strlen(dsuffix) + strlen(name[i]) + 12;
+				cmd[i]->cmd = (char*) emalloc(n);
+				snprintf(cmd[i]->cmd, n, "%s%s/sxiv/exec/%s", homedir, dsuffix, name[i]);
+				if (access(cmd[i]->cmd, X_OK) != 0)
+					cmd[i]->err = errno;
+			}
+		} else {
+			error(0, 0, "Exec directory not found");
+		}
+		info.fd = -1;
+
+		if (options->thumb_mode) {
+			mode = MODE_THUMB;
+			tns_init(&tns, files, &filecnt, &fileidx, &win);
+			while (!tns_load(&tns, fileidx, false, false))
+				remove_file(fileidx, false);
+		} else {
+			mode = MODE_IMAGE;
+			tns.thumbs = NULL;
+			load_image(fileidx);
+		}
+
+#if WINDOW_FIT_IMAGE_PATCH
+		win.w = WIN_WIDTH;
+		win.h = WIN_HEIGHT;
+
+		if (mode == MODE_IMAGE && filecnt == 1) {
+			win.h -= win.bar.h;
+
+			if (img.w <= win.w && img.h <= win.h) {
+				win.w = img.w;
+				win.h = img.h;
+			} else {
+				double scale = (img.w * win.h > img.h * win.w) ?
+					(double) win.w / img.w : (double) win.h / img.h;
+				win.w = (int) (img.w * scale);
+				win.h = (int) (img.h * scale);
+			}
+
+			win.h += win.bar.h;
+		}
+#endif // WINDOW_FIT_IMAGE_PATCH
+
+		win_open(&win);
+#if WINDOW_TITLE_PATCH
+		win_set_dynamic_title(&win, files[fileidx].path);
+#endif // WINDOW_TITLE_PATCH
+		win_set_cursor(&win, CURSOR_WATCH);
+
+		atexit(cleanup);
+
+		set_timeout(redraw, 25, false);
+
+		run();
+
+		return 0;
 	}
-	info.fd = -1;
-
-	if (options->thumb_mode) {
-		mode = MODE_THUMB;
-		tns_init(&tns, files, &filecnt, &fileidx, &win);
-		while (!tns_load(&tns, fileidx, false, false))
-			remove_file(fileidx, false);
-	} else {
-		mode = MODE_IMAGE;
-		tns.thumbs = NULL;
-		load_image(fileidx);
-	}
-	win_open(&win);
-	win_set_cursor(&win, CURSOR_WATCH);
-
-	atexit(cleanup);
-
-	set_timeout(redraw, 25, false);
-
-	run();
-
-	return 0;
-}

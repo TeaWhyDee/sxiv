@@ -14,6 +14,8 @@ sxiv \- Simple X Image Viewer
 .IR GEOMETRY ]
 .RB [ \-N
 .IR NAME ]
+.RB [ \-T
+.IR TITLE ]
 .RB [ \-n
 .IR NUM ]
 .RB [ \-S
@@ -27,7 +29,7 @@ sxiv \- Simple X Image Viewer
 sxiv is a simple image viewer for X.
 .P
 It has two modes of operation: image and thumbnail mode. The default is image
-mode, in which only the current image is shown. In thumbnail mode a grid of 
+mode, in which only the current image is shown. In thumbnail mode a grid of
 small previews is displayed, making it easy to choose an image to open.
 .P
 Please note, that the fullscreen mode requires an EWMH/NetWM compliant window
@@ -64,8 +66,14 @@ more information on GEOMETRY argument.
 .BI "\-N " NAME
 Set the resource name of sxiv's X window to NAME.
 .TP
+.BI "\-T " TITLE
+Set the title of sxiv's X window to TITLE.
+.TP
 .BI "\-n " NUM
 Start at picture number NUM.
+.TP
+.BI "\-F " FILE
+Start at picture file FILE.
 .TP
 .B \-h
 Print brief usage information to standard output and exit.
@@ -96,8 +104,8 @@ seconds.
 may be a floating point number.
 .TP
 .BI "\-s " MODE
-Set scale mode according to MODE character. Supported modes are: [d]own, 
-[f]it, [w]idth, [h]eight.
+Set scale mode according to MODE character. Supported modes are: [d]own,
+[f]it, [F]ill, [w]idth, [h]eight.
 .TP
 .B \-t
 Start in thumbnail mode.
@@ -169,13 +177,13 @@ Zoom out.
 Mark/unmark the current image.
 .TP
 .B M
-Reverse all image marks.
-.TP
-.B Ctrl-M
 Repeat last mark action on all images from the last marked/unmarked up to the
 current one.
 .TP
 .B Ctrl-m
+Reverse all image marks.
+.TP
+.B Ctrl-u
 Remove all image marks.
 .TP
 .B N
@@ -311,6 +319,9 @@ Set zoom level to 100%, but fit large images into window.
 .B W
 Fit image to window.
 .TP
+.B F
+Fill image to window.
+.TP
 .B e
 Fit image to window width.
 .TP
@@ -384,8 +395,32 @@ Color of the window background and bar foreground
 .B foreground
 Color of the window foreground and bar background
 .TP
+.B barbackground
+Separate and optional color for the bar background
+.TP
+.B barforeground
+Separate and optional color for the bar foreground (text)
+.TP
+.B mark
+Color of the extra border for marked thumbnails
+.TP
 .B font
 Name of Xft bar font
+.TP
+.B titlePrefix
+Any string literal to be used as the window title prefix.
+.TP
+.B titleSuffix
+The format of the window title suffix.
+
+.EX
+    Value  Format
+    0      Basename of file
+    1      Basename of directory
+    2      Full path to file
+    3      Full path to directory
+    4      Empty string
+.EE
 .TP
 Please see xrdb(1) on how to change them.
 .SH STATUS BAR

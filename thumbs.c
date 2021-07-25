@@ -35,6 +35,9 @@ void exif_auto_orientate(const fileinfo_t*);
 Imlib_Image img_open(const fileinfo_t*);
 
 static char *cache_dir;
+#if WINDOW_TITLE_PATCH
+extern const int fileidx;
+#endif // WINDOW_TITLE_PATCH
 
 char* tns_cache_filepath(const char *filepath)
 {
@@ -43,7 +46,7 @@ char* tns_cache_filepath(const char *filepath)
 
 	if (*filepath != '/')
 		return NULL;
-	
+
 	if (strncmp(filepath, cache_dir, strlen(cache_dir)) != 0) {
 		/* don't cache images inside the cache directory! */
 		len = strlen(cache_dir) + strlen(filepath) + 2;
@@ -202,20 +205,37 @@ CLEANUP void tns_free(tns_t *tns)
 Imlib_Image tns_scale_down(Imlib_Image im, int dim)
 {
 	int w, h;
+	#if !SQUARE_THUMBNAILS_PATCH
 	float z, zw, zh;
+	#endif // SQUARE_THUMBNAILS_PATCH
 
 	imlib_context_set_image(im);
 	w = imlib_image_get_width();
 	h = imlib_image_get_height();
+	#if SQUARE_THUMBNAILS_PATCH
+	int x = (w < h) ? 0 : (w - h) / 2;
+	int y = (w > h) ? 0 : (h - w) / 2;
+	int s = (w < h) ? w : h;
+	#else
 	zw = (float) dim / (float) w;
 	zh = (float) dim / (float) h;
 	z = MIN(zw, zh);
 	z = MIN(z, 1.0);
+	#endif // SQUARE_THUMBNAILS_PATCH
 
-	if (z < 1.0) {
+	#if SQUARE_THUMBNAILS_PATCH
+	if (dim < w || dim < h)
+	#else
+	if (z < 1.0)
+	#endif // SQUARE_THUMBNAILS_PATCH
+	{
 		imlib_context_set_anti_alias(1);
+		#if SQUARE_THUMBNAILS_PATCH
+		im = imlib_create_cropped_scaled_image(x, y, s, s, dim, dim);
+		#else
 		im = imlib_create_cropped_scaled_image(0, 0, w, h,
 		                                       MAX(z * w, 1), MAX(z * h, 1));
+		#endif // SQUARE_THUMBNAILS_PATCH
 		if (im == NULL)
 			error(EXIT_FAILURE, ENOMEM, NULL);
 		imlib_free_image_and_decache();
@@ -429,8 +449,13 @@ void tns_render(tns_t *tns)
 			cnt -= r % tns->cols;
 	}
 	r = cnt % tns->cols ? 1 : 0;
+	#if THUMBS_PADDING_PATCH
+	tns->x = x = (win->w - MIN(cnt, tns->cols) * tns->dim) / 2 + tns->bw + THUMB_PADDING + THUMB_MARGIN;
+	tns->y = y = (win->h - (cnt / tns->cols + r) * tns->dim) / 2 + tns->bw + THUMB_PADDING + THUMB_MARGIN;
+	#else
 	tns->x = x = (win->w - MIN(cnt, tns->cols) * tns->dim) / 2 + tns->bw + 3;
 	tns->y = y = (win->h - (cnt / tns->cols + r) * tns->dim) / 2 + tns->bw + 3;
+	#endif // THUMBS_PADDING_PATCH
 	tns->loadnext = *tns->cnt;
 	tns->end = tns->first + cnt;
 
@@ -470,6 +495,14 @@ void tns_mark(tns_t *tns, int n, bool mark)
 		win_t *win = tns->win;
 		thumb_t *t = &tns->thumbs[n];
 		unsigned long col = win->bg.pixel;
+
+		#if MARK_BORDER_PATCH
+		if (mark) {
+			col = win->mark.pixel;
+			win_draw_rect(win, t->x, t->y, t->w, t->h, false, tns->bw, col);
+		} else
+			win_draw_rect(win, t->x, t->y, t->w, t->h, false, tns->bw, col);
+		#else
 		int x = t->x + t->w, y = t->y + t->h;
 
 		win_draw_rect(win, x - 1, y + 1, 1, tns->bw, true, 1, col);
@@ -479,6 +512,7 @@ void tns_mark(tns_t *tns, int n, bool mark)
 			col = win->fg.pixel;
 
 		win_draw_rect(win, x, y, tns->bw + 2, tns->bw + 2, true, 1, col);
+		#endif // MARK_BORDER_PATCH
 
 		if (!mark && n == *tns->sel)
 			tns_highlight(tns, n, true);
@@ -491,10 +525,19 @@ void tns_highlight(tns_t *tns, int n, bool hl)
 		win_t *win = tns->win;
 		thumb_t *t = &tns->thumbs[n];
 		unsigned long col = hl ? win->fg.pixel : win->bg.pixel;
+		#if THUMBS_PADDING_PATCH
+		int x = t->x - THUMB_PADDING - tns->bw / 2 - tns->bw % 2,
+		    y = t->y - THUMB_PADDING - tns->bw / 2 - tns->bw % 2,
+		    w = t->w + 2 * THUMB_PADDING + tns->bw + tns->bw % 2,
+		    h = t->h + 2 * THUMB_PADDING + tns->bw + tns->bw % 2;
+
+		win_draw_rect(win, x, y, w, h, false, tns->bw, col);
+		#else
 		int oxy = (tns->bw + 1) / 2 + 1, owh = tns->bw + 2;
 
 		win_draw_rect(win, t->x - oxy, t->y - oxy, t->w + owh, t->h + owh,
 		              false, tns->bw, col);
+		#endif // THUMBS_PADDING_PATCH
 
 		if (tns->files[n].flags & FF_MARK)
 			tns_mark(tns, n, true);
@@ -531,6 +574,9 @@ bool tns_move_selection(tns_t *tns, direction_t dir, int cnt)
 		if (!tns->dirty)
 			tns_highlight(tns, *tns->sel, true);
 	}
+	#if WINDOW_TITLE_PATCH
+	win_set_dynamic_title(tns->win, tns->files[fileidx].path);
+	#endif // WINDOW_TITLE_PATCH
 	return *tns->sel != old;
 }
 
@@ -566,9 +612,14 @@ bool tns_zoom(tns_t *tns, int d)
 	tns->zl = MAX(tns->zl, 0);
 	tns->zl = MIN(tns->zl, ARRLEN(thumb_sizes)-1);
 
+	#if THUMBS_PADDING_PATCH
+	tns->bw = THUMB_BORDERS[tns->zl];
+	tns->dim = thumb_sizes[tns->zl] + 2 * (tns->bw + THUMB_PADDING + THUMB_MARGIN);
+	#else
 	tns->bw = ((thumb_sizes[tns->zl] - 1) >> 5) + 1;
 	tns->bw = MIN(tns->bw, 4);
 	tns->dim = thumb_sizes[tns->zl] + 2 * tns->bw + 6;
+	#endif // THUMBS_PADDING_PATCH
 
 	if (tns->zl != oldzl) {
 		for (i = 0; i < *tns->cnt; i++)

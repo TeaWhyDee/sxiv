@@ -19,6 +19,7 @@
 #ifndef SXIV_H
 #define SXIV_H
 
+#include <patches.h>
 #include <stdarg.h>
 #include <stdbool.h>
 #include <stdio.h>
@@ -26,6 +27,10 @@
 #include <sys/types.h>
 #include <Imlib2.h>
 #include <X11/Xlib.h>
+
+#if SVG_IMAGE_SUPPORT_PATCH
+#include <librsvg/rsvg.h>
+#endif // SVG_IMAGE_SUPPORT_PATCH
 
 /*
  * Annotation for functions called in cleanup().
@@ -88,6 +93,9 @@ typedef enum {
 typedef enum {
 	SCALE_DOWN,
 	SCALE_FIT,
+	#if SCALE_FILL_MODE_PATCH
+	SCALE_FILL,
+	#endif // SCALE_FILL_MODE_PATCH
 	SCALE_WIDTH,
 	SCALE_HEIGHT,
 	SCALE_ZOOM
@@ -115,9 +123,24 @@ typedef enum {
 	FF_TN_INIT = 4
 } fileflags_t;
 
+#if WINDOW_TITLE_PATCH
+typedef enum {
+	BASE_CFILE,
+	BASE_CDIR,
+	CFILE,
+	CDIR,
+	EMPTY,
+
+	SUFFIXMODE_COUNT,
+} suffixmode_t;
+#endif // WINDOW_TITLE_PATCH
+
 typedef struct {
 	const char *name; /* as given by user */
 	const char *path; /* always absolute */
+	#if LIBCURL_PATCH
+	const char *url;
+	#endif // LIBCURL_PATCH
 	fileflags_t flags;
 } fileinfo_t;
 
@@ -206,10 +229,22 @@ typedef struct {
 	int length;
 } multi_img_t;
 
+#if SVG_IMAGE_SUPPORT_PATCH
+typedef struct {
+	RsvgHandle *h;
+	RsvgRectangle size;     /* size of the actual docuemnt which will be used while scaling */
+	RsvgRectangle viewbox;  /* size of the scaled image which will be rendered */
+} svg_t;
+#endif // SVG_IMAGE_SUPPORT_PATCH
+
 struct img {
 	Imlib_Image im;
 	int w;
 	int h;
+
+	#if SVG_IMAGE_SUPPORT_PATCH
+	svg_t svg;
+	#endif // SVG_IMAGE_SUPPORT_PATCH
 
 	win_t *win;
 	float x;
@@ -252,6 +287,7 @@ void img_toggle_antialias(img_t*);
 bool img_change_gamma(img_t*, int);
 bool img_frame_navigate(img_t*, int);
 bool img_frame_animate(img_t*);
+int  img_zoom_diff(img_t*, float*);
 
 
 /* options.c */
@@ -261,9 +297,15 @@ struct opt {
 	char **filenames;
 	bool from_stdin;
 	bool to_stdout;
+	#if DMENU_LIKE_BEHAVIOUR_PATCH
+	bool like_dmenu;
+	#endif // DMENU_LIKE_BEHAVIOUR_PATCH
 	bool recursive;
 	int filecnt;
 	int startnum;
+	#if START_FROM_FILE_PATCH
+	char *startfile;
+	#endif // START_FROM_FILE_PATCH
 
 	/* image: */
 	scalemode_t scalemode;
@@ -279,6 +321,9 @@ struct opt {
 	long embed;
 	char *geometry;
 	char *res_name;
+	#if SET_WINDOW_TITLE_PATCH
+	char *title;
+	#endif // SET_WINDOW_TITLE_PATCH
 
 	/* misc flags: */
 	bool quiet;
@@ -383,6 +428,9 @@ enum {
 	ATOM__NET_WM_NAME,
 	ATOM__NET_WM_ICON_NAME,
 	ATOM__NET_WM_ICON,
+	#if EWMH_NET_WM_PID_PATCH
+	ATOM__NET_WM_PID,
+	#endif // EWMH_NET_WM_PID_PATCH
 	ATOM__NET_WM_STATE,
 	ATOM__NET_WM_STATE_FULLSCREEN,
 	ATOM_COUNT
@@ -409,6 +457,19 @@ struct win {
 
 	XftColor bg;
 	XftColor fg;
+	#if MARK_BORDER_PATCH
+	XftColor mark;
+	#endif // MARK_BORDER_PATCH
+	#if SEPARATE_BAR_COLORS_PATCH
+	XftColor barbg;
+	XftColor barfg;
+	#endif // SEPARATE_BAR_COLORS_PATCH
+
+	#if WINDOW_TITLE_PATCH
+	suffixmode_t suffixmode;
+	const char   *prefix;
+	const char   *suffix;
+	#endif // WINDOW_TITLE_PATCH
 
 	int x;
 	int y;
@@ -441,6 +502,9 @@ void win_clear(win_t*);
 void win_draw(win_t*);
 void win_draw_rect(win_t*, int, int, int, int, bool, int, unsigned long);
 void win_set_title(win_t*, const char*);
+#if WINDOW_TITLE_PATCH
+void win_set_dynamic_title(win_t *win, const char *path);
+#endif // WINDOW_TITLE_PATCH
 void win_set_cursor(win_t*, cursor_t);
 void win_cursor_pos(win_t*, int*, int*);
 
