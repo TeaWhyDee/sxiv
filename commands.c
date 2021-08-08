@@ -51,6 +51,7 @@ extern int markidx;
 
 extern int prefix;
 extern bool extprefix;
+extern bool square_thumbnails;
 
 bool cg_quit(arg_t _)
 {
@@ -126,6 +127,19 @@ bool cg_toggle_bar(arg_t _)
 	} else {
 		tns.dirty = true;
 	}
+	return true;
+}
+
+bool cg_toggle_square(arg_t _)
+{
+	if (square_thumbnails == true)
+		square_thumbnails = false;
+	else
+		square_thumbnails = true;
+	// Reload all
+	tns_free(&tns);
+	tns_init(&tns, files, &filecnt, &fileidx, &win);
+	tns.dirty = true;
 	return true;
 }
 

@@ -690,8 +690,8 @@ void on_keypress(XKeyEvent *kev)
 	if (extprefix) {
 		if (run_key_handler(XKeysymToString(ksym), kev->state & ~sh))
 			extprefix = False;
-		if (one_extkeyhandler_cmd)
-			extprefix = False;
+		/* if (one_extkeyhandler_cmd) */
+		/* 	extprefix = False; */
 #else
 		if (ksym == XK_Escape && MODMASK(kev->state) == 0) {
 			extprefix = False;

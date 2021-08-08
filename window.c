@@ -154,7 +154,7 @@ void win_init(win_t *win)
 	res_man = XResourceManagerString(e->dpy);
 	db = res_man != NULL ? XrmGetStringDatabase(res_man) : None;
 
-	f = win_res(db, RES_CLASS ".font", "monospace-8");
+	f = win_res(db, RES_CLASS ".font", "monospace-10");
 	win_init_font(e, f);
 
 #if WINDOW_TITLE_PATCH

@@ -22,7 +22,7 @@
  *
  * https://github.com/muennich/sxiv/pull/428
  */
-#define ALLOW_ESCAPE_KEY_IN_EXTERNAL_KEY_HANDLER_PATCH 1
+#define ALLOW_ESCAPE_KEY_IN_EXTERNAL_KEY_HANDLER_PATCH 0
 
 /* Adds alpha support not for transparency, but to allow sxiv to be embedded into applications
  * that expects support it (e.g. tabbed with alpha patch).
@@ -79,7 +79,7 @@
  *
  * https://github.com/explosion-mental/sxiv/blob/main/patches/libcurl.patch
  */
-#define LIBCURL_PATCH 1
+#define LIBCURL_PATCH 0
 
 /* Shows marked files with a separate colored border in the thumbnail view.
  * The color can be specified by adding Sxiv.mark in your .Xresources file.
@@ -95,7 +95,7 @@
 /* Allows for the same keys used to scroll to be re-used for navigation if the image is not zoomed.
  * https://github.com/muennich/sxiv/pull/368
  */
-#define NAVIGATE_IF_NOT_SCROLL_PATCH 1
+#define NAVIGATE_IF_NOT_SCROLL_PATCH 0
 
 /* Adds fill scale mode.
  * https://github.com/muennich/sxiv/pull/446

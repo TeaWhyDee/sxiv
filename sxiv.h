@@ -19,7 +19,7 @@
 #ifndef SXIV_H
 #define SXIV_H
 
-#include <patches.h>
+#include "patches.h"
 #include <stdarg.h>
 #include <stdbool.h>
 #include <stdio.h>

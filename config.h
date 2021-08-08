@@ -61,7 +61,7 @@ static const keymap_t keys[] = {
 	/* modifiers    key               function              argument */
 	{ 0,            XK_q,             g_quit,               None },
 	{ 0,            XK_Return,        g_switch_mode,        None },
-	{ 0,            XK_Tab,        g_switch_mode,        None },
+	{ 0,            XK_Tab,           g_switch_mode,        None },
 	{ 0,            XK_f,             g_toggle_fullscreen,  None },
 	{ 0,            XK_b,             g_toggle_bar,         None },
 	{ 0,            XK_x,             g_prefix_external,    None },
@@ -69,6 +69,7 @@ static const keymap_t keys[] = {
 	{ 0,            XK_G,             g_n_or_last,          None },
 	{ 0,            XK_r,             g_reload_image,       None },
 	{ 0,            XK_D,             g_remove_image,       None },
+	{ 0,            XK_S,             g_toggle_square,      None },
 	/* { ControlMask,  XK_h,             g_scroll_screen,      DIR_LEFT }, */
 	/* { ControlMask,  XK_Left,          g_scroll_screen,      DIR_LEFT }, */
 	/* { ControlMask,  XK_j,             g_scroll_screen,      DIR_DOWN }, */

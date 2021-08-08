@@ -38,6 +38,7 @@ static char *cache_dir;
 #if WINDOW_TITLE_PATCH
 extern const int fileidx;
 #endif // WINDOW_TITLE_PATCH
+bool square_thumbnails = false;
 
 char* tns_cache_filepath(const char *filepath)
 {
@@ -92,7 +93,7 @@ void tns_cache_write(Imlib_Image im, const char *filepath, bool force)
 
 	if ((cfile = tns_cache_filepath(filepath)) != NULL) {
 		if (force || stat(cfile, &cstats) < 0 ||
-		    cstats.st_mtime != fstats.st_mtime)
+				cstats.st_mtime != fstats.st_mtime)
 		{
 			if ((dirend = strrchr(cfile, '/')) != NULL) {
 				*dirend = '\0';
@@ -147,7 +148,7 @@ void tns_clean_cache(tns_t *tns)
 
 
 void tns_init(tns_t *tns, fileinfo_t *files, const int *cnt, int *sel,
-              win_t *win)
+		win_t *win)
 {
 	int len;
 	const char *homedir, *dsuffix = "";
@@ -205,40 +206,42 @@ CLEANUP void tns_free(tns_t *tns)
 Imlib_Image tns_scale_down(Imlib_Image im, int dim)
 {
 	int w, h;
-	#if !SQUARE_THUMBNAILS_PATCH
 	float z, zw, zh;
-	#endif // SQUARE_THUMBNAILS_PATCH
 
 	imlib_context_set_image(im);
 	w = imlib_image_get_width();
 	h = imlib_image_get_height();
-	#if SQUARE_THUMBNAILS_PATCH
+	// sq thumbs
 	int x = (w < h) ? 0 : (w - h) / 2;
 	int y = (w > h) ? 0 : (h - w) / 2;
 	int s = (w < h) ? w : h;
-	#else
+	// non-square thumbs
 	zw = (float) dim / (float) w;
 	zh = (float) dim / (float) h;
 	z = MIN(zw, zh);
 	z = MIN(z, 1.0);
-	#endif // SQUARE_THUMBNAILS_PATCH
 
-	#if SQUARE_THUMBNAILS_PATCH
-	if (dim < w || dim < h)
-	#else
-	if (z < 1.0)
-	#endif // SQUARE_THUMBNAILS_PATCH
+	if (square_thumbnails)
 	{
-		imlib_context_set_anti_alias(1);
-		#if SQUARE_THUMBNAILS_PATCH
-		im = imlib_create_cropped_scaled_image(x, y, s, s, dim, dim);
-		#else
-		im = imlib_create_cropped_scaled_image(0, 0, w, h,
-		                                       MAX(z * w, 1), MAX(z * h, 1));
-		#endif // SQUARE_THUMBNAILS_PATCH
-		if (im == NULL)
-			error(EXIT_FAILURE, ENOMEM, NULL);
-		imlib_free_image_and_decache();
+		if (dim < w || dim < h)
+		{
+			imlib_context_set_anti_alias(1);
+			im = imlib_create_cropped_scaled_image(x, y, s, s, dim, dim);
+			if (im == NULL)
+				error(EXIT_FAILURE, ENOMEM, NULL);
+			imlib_free_image_and_decache();
+		}
+	}
+	else // no square thumbs
+	{
+		if (z < 1.0)
+		{
+			imlib_context_set_anti_alias(1);
+			im = imlib_create_cropped_scaled_image(0, 0, w, h, MAX(z * w, 1), MAX(z * h, 1));
+			if (im == NULL)
+				error(EXIT_FAILURE, ENOMEM, NULL);
+			imlib_free_image_and_decache();
+		}
 	}
 	return im;
 }
@@ -270,7 +273,7 @@ bool tns_load(tns_t *tns, int n, bool force, bool cache_only)
 		if ((im = tns_cache_load(file->path, &force)) != NULL) {
 			imlib_context_set_image(im);
 			if (imlib_image_get_width() < maxwh &&
-			    imlib_image_get_height() < maxwh)
+					imlib_image_get_height() < maxwh)
 			{
 				if ((cfile = tns_cache_filepath(file->path)) != NULL) {
 					unlink(cfile);
@@ -296,7 +299,7 @@ bool tns_load(tns_t *tns, int n, bool force, bool cache_only)
 
 			if ((ed = exif_data_new_from_file(file->path)) != NULL) {
 				if (ed->data != NULL && ed->size > 0 &&
-				    (tmpfd = mkstemp(tmppath)) >= 0)
+						(tmpfd = mkstemp(tmppath)) >= 0)
 				{
 					err = write(tmpfd, ed->data, ed->size) != ed->size;
 					close(tmpfd);
@@ -449,13 +452,13 @@ void tns_render(tns_t *tns)
 			cnt -= r % tns->cols;
 	}
 	r = cnt % tns->cols ? 1 : 0;
-	#if THUMBS_PADDING_PATCH
+#if THUMBS_PADDING_PATCH
 	tns->x = x = (win->w - MIN(cnt, tns->cols) * tns->dim) / 2 + tns->bw + THUMB_PADDING + THUMB_MARGIN;
 	tns->y = y = (win->h - (cnt / tns->cols + r) * tns->dim) / 2 + tns->bw + THUMB_PADDING + THUMB_MARGIN;
-	#else
+#else
 	tns->x = x = (win->w - MIN(cnt, tns->cols) * tns->dim) / 2 + tns->bw + 3;
 	tns->y = y = (win->h - (cnt / tns->cols + r) * tns->dim) / 2 + tns->bw + 3;
-	#endif // THUMBS_PADDING_PATCH
+#endif // THUMBS_PADDING_PATCH
 	tns->loadnext = *tns->cnt;
 	tns->end = tns->first + cnt;
 
@@ -496,13 +499,13 @@ void tns_mark(tns_t *tns, int n, bool mark)
 		thumb_t *t = &tns->thumbs[n];
 		unsigned long col = win->bg.pixel;
 
-		#if MARK_BORDER_PATCH
+#if MARK_BORDER_PATCH
 		if (mark) {
 			col = win->mark.pixel;
 			win_draw_rect(win, t->x, t->y, t->w, t->h, false, tns->bw, col);
 		} else
 			win_draw_rect(win, t->x, t->y, t->w, t->h, false, tns->bw, col);
-		#else
+#else
 		int x = t->x + t->w, y = t->y + t->h;
 
 		win_draw_rect(win, x - 1, y + 1, 1, tns->bw, true, 1, col);
@@ -512,7 +515,7 @@ void tns_mark(tns_t *tns, int n, bool mark)
 			col = win->fg.pixel;
 
 		win_draw_rect(win, x, y, tns->bw + 2, tns->bw + 2, true, 1, col);
-		#endif // MARK_BORDER_PATCH
+#endif // MARK_BORDER_PATCH
 
 		if (!mark && n == *tns->sel)
 			tns_highlight(tns, n, true);
@@ -525,19 +528,19 @@ void tns_highlight(tns_t *tns, int n, bool hl)
 		win_t *win = tns->win;
 		thumb_t *t = &tns->thumbs[n];
 		unsigned long col = hl ? win->fg.pixel : win->bg.pixel;
-		#if THUMBS_PADDING_PATCH
+#if THUMBS_PADDING_PATCH
 		int x = t->x - THUMB_PADDING - tns->bw / 2 - tns->bw % 2,
-		    y = t->y - THUMB_PADDING - tns->bw / 2 - tns->bw % 2,
-		    w = t->w + 2 * THUMB_PADDING + tns->bw + tns->bw % 2,
-		    h = t->h + 2 * THUMB_PADDING + tns->bw + tns->bw % 2;
+				y = t->y - THUMB_PADDING - tns->bw / 2 - tns->bw % 2,
+				w = t->w + 2 * THUMB_PADDING + tns->bw + tns->bw % 2,
+				h = t->h + 2 * THUMB_PADDING + tns->bw + tns->bw % 2;
 
 		win_draw_rect(win, x, y, w, h, false, tns->bw, col);
-		#else
+#else
 		int oxy = (tns->bw + 1) / 2 + 1, owh = tns->bw + 2;
 
 		win_draw_rect(win, t->x - oxy, t->y - oxy, t->w + owh, t->h + owh,
-		              false, tns->bw, col);
-		#endif // THUMBS_PADDING_PATCH
+				false, tns->bw, col);
+#endif // THUMBS_PADDING_PATCH
 
 		if (tns->files[n].flags & FF_MARK)
 			tns_mark(tns, n, true);
@@ -557,7 +560,7 @@ bool tns_move_selection(tns_t *tns, direction_t dir, int cnt)
 			break;
 		case DIR_DOWN:
 			max = tns->cols * ((*tns->cnt - 1) / tns->cols) +
-			      MIN((*tns->cnt - 1) % tns->cols, *tns->sel % tns->cols);
+				MIN((*tns->cnt - 1) % tns->cols, *tns->sel % tns->cols);
 			*tns->sel = MIN(*tns->sel + cnt * tns->cols, max);
 			break;
 		case DIR_LEFT:
@@ -574,9 +577,9 @@ bool tns_move_selection(tns_t *tns, direction_t dir, int cnt)
 		if (!tns->dirty)
 			tns_highlight(tns, *tns->sel, true);
 	}
-	#if WINDOW_TITLE_PATCH
+#if WINDOW_TITLE_PATCH
 	win_set_dynamic_title(tns->win, tns->files[fileidx].path);
-	#endif // WINDOW_TITLE_PATCH
+#endif // WINDOW_TITLE_PATCH
 	return *tns->sel != old;
 }
 
@@ -612,14 +615,14 @@ bool tns_zoom(tns_t *tns, int d)
 	tns->zl = MAX(tns->zl, 0);
 	tns->zl = MIN(tns->zl, ARRLEN(thumb_sizes)-1);
 
-	#if THUMBS_PADDING_PATCH
+#if THUMBS_PADDING_PATCH
 	tns->bw = THUMB_BORDERS[tns->zl];
 	tns->dim = thumb_sizes[tns->zl] + 2 * (tns->bw + THUMB_PADDING + THUMB_MARGIN);
-	#else
+#else
 	tns->bw = ((thumb_sizes[tns->zl] - 1) >> 5) + 1;
 	tns->bw = MIN(tns->bw, 4);
 	tns->dim = thumb_sizes[tns->zl] + 2 * tns->bw + 6;
-	#endif // THUMBS_PADDING_PATCH
+#endif // THUMBS_PADDING_PATCH
 
 	if (tns->zl != oldzl) {
 		for (i = 0; i < *tns->cnt; i++)
@@ -637,7 +640,7 @@ int tns_translate(tns_t *tns, int x, int y)
 		return -1;
 
 	n = tns->first + (y - tns->y) / tns->dim * tns->cols +
-	    (x - tns->x) / tns->dim;
+		(x - tns->x) / tns->dim;
 	if (n >= *tns->cnt)
 		n = -1;
 
