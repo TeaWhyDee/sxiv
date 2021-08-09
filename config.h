@@ -48,10 +48,11 @@ static const bool ALPHA_LAYER = false;
 #ifdef _THUMBS_CONFIG
 
 /* thumbnail sizes in pixels (width == height): */
-static const int thumb_sizes[] = { 96, 128, 160, 190, 220, 250, 280, 310, 340, 370 };
+/* static const int thumb_sizes[] = { 96, 128, 160, 190, 220, 250, 280, 310, 340, 370 }; */
+static const int thumb_sizes[] = { 96, 128, 160, 200, 240, 320, 380 };
 
 /* thumbnail size at startup, index into thumb_sizes[]: */
-static const int THUMB_SIZE = 6;
+static const int THUMB_SIZE = 4;
 
 #endif
 #ifdef _MAPPINGS_CONFIG

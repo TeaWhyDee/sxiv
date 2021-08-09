@@ -40,6 +40,7 @@ extern const int fileidx;
 #endif // WINDOW_TITLE_PATCH
 bool square_thumbnails = false;
 bool resize = true;
+bool init = true;
 
 char* tns_cache_filepath(const char *filepath)
 {
@@ -168,7 +169,11 @@ void tns_init(tns_t *tns, fileinfo_t *files, const int *cnt, int *sel,
 	tns->win = win;
 	tns->dirty = false;
 
-	/* tns->zl = THUMB_SIZE; */
+	if (init)
+	{
+		tns->zl = THUMB_SIZE;
+		init = false;
+	}
 	tns_zoom(tns, 0);
 
 	if ((homedir = getenv("XDG_CACHE_HOME")) == NULL || homedir[0] == '\0') {
@@ -224,6 +229,7 @@ Imlib_Image tns_scale_down(Imlib_Image im, int dim)
 
 	if (square_thumbnails)
 	{
+		/* if (dim < w || dim < h || resize) */
 		if (dim < w || dim < h)
 		{
 			imlib_context_set_anti_alias(1);
@@ -235,10 +241,12 @@ Imlib_Image tns_scale_down(Imlib_Image im, int dim)
 	}
 	else // no square thumbs
 	{
+		/* if (z < 1.0 || resize) */
 		if (z < 1.0)
 		{
 			imlib_context_set_anti_alias(1);
-			im = imlib_create_cropped_scaled_image(0, 0, w, h, MAX(z * w, 1), MAX(z * h, 1));
+			im = imlib_create_cropped_scaled_image(0, 0, w, h,
+					MAX(z * w, 1), MAX(z * h, 1));
 			if (im == NULL)
 				error(EXIT_FAILURE, ENOMEM, NULL);
 			imlib_free_image_and_decache();

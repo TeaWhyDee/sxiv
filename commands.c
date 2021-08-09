@@ -138,7 +138,6 @@ bool cg_toggle_square(arg_t _)
 		square_thumbnails = true;
 	// Reload all
 	tns_free(&tns);
-	printf("%d", tns.zl);
 	tns_init(&tns, files, &filecnt, &fileidx, &win);
 	tns.dirty = true;
 	return true;
