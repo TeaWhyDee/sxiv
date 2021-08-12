@@ -9,10 +9,11 @@ welcome but there is no guarantee that they will be incorporated.
 
 This branch
 --------
-* Personal fork (already configured for me), can be unstable, I try to add ability to config my additions.
+* Personal fork (already configured for me), can be unstable, I try to add ability to config my additions
 * Merged code from https://github.com/bakkeby/sxiv-flexipatch (read for dependencies)
-* Square thumbnail mode can be toggled with a settable hotkey (buggy, for some reason sometimes sxiv doesn't update the cached thumbnails)
+* Square thumbnail mode can be toggled with a settable hotkey [default: S] (buggy, for some reason sometimes sxiv doesn't update the cached thumbnails)
 * Default thumbnail size is only set on startup, keeps previous when images reload (ex. reload_all hotkey)
+* Marking in thumbnail mode moves selection to the next image.
 
 
 

@@ -225,7 +225,9 @@ bool cg_zoom(arg_t d)
 
 bool cg_toggle_image_mark(arg_t _)
 {
-	return mark_image(fileidx, !(files[fileidx].flags & FF_MARK));
+	bool to_ret = mark_image(fileidx, !(files[fileidx].flags & FF_MARK));
+	tns_move_selection(&tns, DIR_RIGHT, prefix);
+	return to_ret;
 }
 
 bool cg_reverse_marks(arg_t _)
